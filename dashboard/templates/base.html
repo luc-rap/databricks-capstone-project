@@ -6,6 +6,7 @@
     <title>{% block title %}AI Job Hunting Copilot{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <style>
         body {
             display: flex;
@@ -13,26 +14,50 @@
         }
         .sidebar {
             width: 250px;
-            background: linear-gradient(180deg, #FF3621 0%, #D73A3A 100%);
-            color: white;
+            background: linear-gradient(180deg, #FFE5F0 0%, #F3E8FF 100%);
+            color: #6B5B7C !important;
             padding: 20px;
             flex-shrink: 0;
+            box-shadow: 4px 0 20px rgba(230, 210, 230, 0.3);
+        }
+        .sidebar * {
+            color: inherit;
         }
         .sidebar h3 {
             font-size: 1.2rem;
             margin-bottom: 20px;
+            color: #6B5B7C;
+            font-weight: 600;
         }
         .sidebar .nav-link {
-            color: rgba(255, 255, 255, 0.8);
+            color: #6B5B7C !important;
             padding: 10px 15px;
-            border-radius: 5px;
+            border-radius: 10px;
             margin-bottom: 5px;
             transition: all 0.3s;
+            font-weight: 500;
         }
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
+            background: linear-gradient(135deg, #FFB6C1 0%, #E6E6FA 100%);
+            color: white !important;
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(255, 182, 193, 0.3);
+        }
+        .sidebar .nav-link i {
+            color: #D5AAFF !important;
+            margin-right: 8px;
+            transition: color 0.3s;
+        }
+        .sidebar .nav-link:hover i,
+        .sidebar .nav-link.active i {
+            color: white !important;
+        }
+        .sidebar hr {
+            border-color: rgba(107, 91, 124, 0.2) !important;
+        }
+        .sidebar p {
+            color: #9B8EA8;
         }
         .main-content {
             flex: 1;
@@ -49,7 +74,10 @@
         .stats-card h3 {
             font-size: 2rem;
             margin: 10px 0;
-            color: #FF3621;
+            background: linear-gradient(135deg, #FFB6C1 0%, #D5AAFF 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         .stats-card p {
             color: #666;
@@ -61,10 +89,31 @@
 <body>
     <!-- Sidebar -->
     <div class="sidebar">
-        <h3><i class="bi bi-briefcase-fill"></i> Job Hunt Copilot</h3>
-        <hr style="border-color: rgba(255,255,255,0.3);">
-        <p style="font-size: 0.9rem; opacity: 0.8;">{{ user.name }}</p>
-        <p style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 20px;">{{ user.email }}</p>
+        <h3 style="color: #6B5B7C;"><i class="bi bi-briefcase-fill" style="color: #D5AAFF;"></i> Job Hunt Copilot</h3>
+        <hr style="border-color: rgba(107, 91, 124, 0.2);">
+        <style>
+            #profileDropdown {
+                background: white;
+                color: #6B5B7C !important;
+                border: 1px solid rgba(107, 91, 124, 0.2);
+                font-weight: 500;
+            }
+            #profileDropdown:hover {
+                background: #F8F9FA;
+                border-color: #D5AAFF;
+            }
+        </style>
+        
+        <!-- Profile Switcher -->
+        <div class="dropdown mb-3">
+            <button class="btn btn-light btn-sm dropdown-toggle w-100" type="button" id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="text-align: left;">
+                <i class="bi bi-person-circle"></i> <span id="currentProfileName">{{ user.name }}</span>
+            </button>
+            <ul class="dropdown-menu w-100" aria-labelledby="profileDropdown" id="profileList">
+                <!-- Profiles will be loaded here -->
+            </ul>
+        </div>
+        <p style="font-size: 0.8rem; color: #9B8EA8; margin-bottom: 20px; font-weight: 500;" id="currentProfileEmail">{{ user.email }}</p>
         
         <nav class="nav flex-column">
             <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
@@ -97,6 +146,107 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Profile Switcher Script -->
+    <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Load all profiles
+        try {
+            const response = await fetch('/api/profiles');
+            const data = await response.json();
+            
+            if (data.success) {
+                const profileList = document.getElementById('profileList');
+                profileList.innerHTML = '';
+                
+                // Add existing profiles
+                data.profiles.forEach(profile => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<a class="dropdown-item" href="#" onclick="switchProfile('${profile.email}', '${profile.full_name}'); return false;">
+                        <i class="bi bi-person"></i> ${profile.full_name}
+                        <br><small class="text-muted">${profile.email}</small>
+                    </a>`;
+                    profileList.appendChild(li);
+                });
+                
+                // Add divider
+                const divider = document.createElement('li');
+                divider.innerHTML = '<hr class="dropdown-divider">';
+                profileList.appendChild(divider);
+                
+                // Add "Create New Profile" button
+                const newProfileLi = document.createElement('li');
+                newProfileLi.innerHTML = '<a class="dropdown-item" href="#" onclick="showNewProfileModal(); return false;"><i class="bi bi-plus-circle"></i> Create New Profile</a>';
+                profileList.appendChild(newProfileLi);
+            }
+        } catch (error) {
+            console.error('Error loading profiles:', error);
+        }
+    });
+    
+    async function switchProfile(email, name) {
+        try {
+            const response = await fetch('/api/profiles/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, name })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update UI
+                document.getElementById('currentProfileName').textContent = name;
+                document.getElementById('currentProfileEmail').textContent = email;
+                
+                // Reload page to reflect new profile
+                window.location.reload();
+            } else {
+                alert('Failed to switch profile: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error switching profile:', error);
+            alert('Failed to switch profile');
+        }
+    }
+    
+    function showNewProfileModal() {
+        const name = prompt('Enter profile name:');
+        if (!name) return;
+        
+        const email = prompt('Enter email:');
+        if (!email) return;
+        
+        createProfile(name, email);
+    }
+    
+    async function createProfile(name, email) {
+        try {
+            const response = await fetch('/api/profiles/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, email })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Reload page to show new profile
+                window.location.reload();
+            } else {
+                alert('Failed to create profile: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error creating profile:', error);
+            alert('Failed to create profile');
+        }
+    }
+    </script>
+    
     {% block extra_js %}{% endblock %}
 </body>
 </html>

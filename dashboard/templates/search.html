@@ -235,9 +235,31 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function saveJob(jobId) {
-    // TODO: Implement save job functionality
-    alert('Save job functionality coming soon!');
+async function saveJob(jobId) {
+    try {
+        const response = await fetch('/api/save_job', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                job_id: jobId,
+                status: 'saved'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show success message
+            alert('Job saved to your pipeline!');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error saving job:', error);
+        alert('Failed to save job. Please try again.');
+    }
 }
 
 function fillExample(exampleQuery) {

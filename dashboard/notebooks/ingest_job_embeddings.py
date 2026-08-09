@@ -106,9 +106,7 @@ print(f"Results per page: {RESULTS_PER_PAGE}")
 # MAGIC %md
 # MAGIC ## Resolve the Lakebase connection URL
 # MAGIC
-# MAGIC Reads the Postgres connection URL from Databricks secrets, parses it for both:
-# MAGIC - Spark JDBC reader (distributed reads)
-# MAGIC - psycopg2 direct connection (batch writes)
+# MAGIC Reads the Postgres connection URL from Databricks secrets
 
 # COMMAND ----------
 
@@ -186,9 +184,119 @@ except Exception as e:
 
 # COMMAND ----------
 
+# DBTITLE 1,Load CSV from Upload (Alternative to API)
+# ============================================
+# OPTION: Load Jobs from Uploaded CSV
+# ============================================
+# Use this cell if you ran fetch_adzuna_jobs.py locally and uploaded the CSV
+# Skip cell 11 (direct API call) and use this instead
+
+import pandas as pd
+import psycopg2
+from psycopg2.extras import execute_values
+
+# UPDATE THIS PATH with your uploaded CSV location
+# Option 1: If uploaded to a Volume
+CSV_PATH = "/Volumes/workspace/default/test/adzuna_jobs_20260809_110415.csv"
+
+# Option 2: If uploaded to DBFS
+# CSV_PATH = "/dbfs/tmp/adzuna_jobs.csv"
+
+# Option 3: If created as a table via UI upload
+# df = spark.table("main.default.adzuna_jobs_staging").toPandas()
+
+print(f"📖 Reading CSV from {CSV_PATH}...")
+try:
+    df = pd.read_csv(CSV_PATH)
+    print(f"✅ Loaded {len(df)} jobs from CSV\n")
+except FileNotFoundError:
+    print(f"❌ File not found: {CSV_PATH}")
+    print("\nPlease upload your CSV and update CSV_PATH above.")
+    print("\nUpload options:")
+    print("  1. Catalog → Upload Data → Create Table")
+    print("  2. Catalog → Volume → Upload File")
+    print("  3. CLI: databricks fs cp file.csv dbfs:/tmp/")
+    raise
+
+# Show preview
+print(f"📊 Sample jobs:")
+for idx, row in df.head(3).iterrows():
+    salary = ""
+    if pd.notna(row.get('salary_min')) and pd.notna(row.get('salary_max')):
+        salary = f" (${row['salary_min']:,.0f} - ${row['salary_max']:,.0f})"
+    print(f"{idx+1}. {row['title']} at {row['company']} ({row['location']}){salary}")
+
+# Insert into Lakebase
+print(f"\n💾 Inserting into {JOB_POSTINGS_TABLE}...")
+conn = psycopg2.connect(
+    host=db_host,
+    port=db_port,
+    dbname=db_name,
+    user=db_user,
+    password=db_password,
+    sslmode='require'
+)
+
+try:
+    cursor = conn.cursor()
+    
+    # Prepare data for batch insert
+    insert_data = [
+        (
+            row['external_id'],
+            row['title'],
+            row['company'],
+            row['location'],
+            row['description'],
+            row['url'],
+            row['salary_min'] if pd.notna(row.get('salary_min')) else None,
+            row['salary_max'] if pd.notna(row.get('salary_max')) else None,
+            row.get('contract_type'),
+            row.get('category'),
+            row.get('posted_date')
+        )
+        for _, row in df.iterrows()
+    ]
+    
+    # Batch insert with ON CONFLICT DO UPDATE (upsert)
+    insert_sql = f"""
+        INSERT INTO {JOB_POSTINGS_TABLE} (
+            external_id, title, company, location, description,
+            url, salary_min, salary_max, contract_type, category, posted_date, fetched_at
+        ) VALUES %s
+        ON CONFLICT (external_id) DO UPDATE SET
+            title = EXCLUDED.title,
+            company = EXCLUDED.company,
+            location = EXCLUDED.location,
+            description = EXCLUDED.description,
+            url = EXCLUDED.url,
+            salary_min = EXCLUDED.salary_min,
+            salary_max = EXCLUDED.salary_max,
+            contract_type = EXCLUDED.contract_type,
+            category = EXCLUDED.category,
+            fetched_at = CURRENT_TIMESTAMP,
+            is_active = TRUE
+    """
+    
+    template = "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)"
+    execute_values(cursor, insert_sql, insert_data, template=template, page_size=100)
+    
+    conn.commit()
+    inserted_count = cursor.rowcount
+    print(f"✅ Successfully inserted/updated {inserted_count} job postings")
+    
+finally:
+    cursor.close()
+    conn.close()
+
+print("\n✅ CSV data loaded into Lakebase!")
+print("\n➡️ Continue to cell 14 to compute embeddings")
+
+# COMMAND ----------
+
 # DBTITLE 1,Fetch Jobs from Adzuna
 # MAGIC %md
-# MAGIC ## Fetch jobs from Adzuna API
+# MAGIC ## Fetch jobs from Adzuna API (Option 2 - if working from Databricks)
 # MAGIC
 # MAGIC Retrieves job postings matching the search query and stores them in Lakebase.
 # MAGIC Uses ON CONFLICT DO NOTHING for deduplication.
@@ -236,12 +344,25 @@ api_params = {
 if search_where:
     api_params["where"] = search_where
 
-response = requests.get(
-    f"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}",
-    params=api_params,
-    timeout=30
-)
-response.raise_for_status()
+try:
+    response = requests.get(
+        f"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}",
+        params=api_params,
+        timeout=30
+    )
+    response.raise_for_status()
+except requests.exceptions.ConnectionError as e:
+    if "Failed to resolve" in str(e) or "Name or service not known" in str(e):
+        print("\n❌ Network Error: Cannot reach Adzuna API (api.adzuna.com)")
+        print("\nThis cluster cannot resolve external DNS names.")
+        print("\nPossible solutions:")
+        print("  1. Check if the cluster has internet access enabled")
+        print("  2. Verify firewall/network security group settings allow outbound HTTPS")
+        print("  3. Try running on a different cluster with internet access")
+        print("  4. Contact your workspace administrator about external API access")
+        raise RuntimeError("Cannot connect to Adzuna API - DNS resolution failed") from e
+    else:
+        raise
 
 jobs_data = response.json()
 jobs = jobs_data.get("results", [])
@@ -382,7 +503,7 @@ else:
 # MAGIC
 # MAGIC Loads the sentence-transformers model once and processes all jobs in batches for efficient embedding generation.
 # MAGIC
-# MAGIC Using **sentence-transformers/all-MiniLM-L6-v2** (384 dimensions) - same as ticker news embeddings.
+# MAGIC Using **sentence-transformers/all-MiniLM-L6-v2** (384 dimensions)
 
 # COMMAND ----------
 

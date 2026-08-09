@@ -4,40 +4,147 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4"><i class="bi bi-kanban-fill"></i> My Application Pipeline</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-kanban-fill"></i> My Application Pipeline</h1>
+        <a href="{{ url_for('search') }}" class="btn btn-primary">
+            <i class="bi bi-search"></i> Find More Jobs
+        </a>
+    </div>
     
     {% if applications.saved or applications.applied or applications.interviewing or applications.offer or applications.rejected %}
         {% for status in ['saved', 'applied', 'interviewing', 'offer', 'rejected'] %}
             {% if applications[status] %}
-                <h3 class="mt-4 mb-3">{{ status|title }} ({{ applications[status]|length }})</h3>
-                <div class="row g-3">
-                    {% for app in applications[status] %}
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ app.title }}</h5>
-                                    <h6 class="card-subtitle mb-2 text-muted">{{ app.company }}</h6>
-                                    <p class="card-text">
-                                        <i class="bi bi-geo-alt"></i> {{ app.location }}<br>
-                                        {% if app.applied_date %}
-                                        <i class="bi bi-calendar"></i> Applied: {{ app.applied_date }}<br>
+                <div class="mb-4">
+                    <h3 class="mb-3">
+                        {% if status == 'saved' %}
+                            <i class="bi bi-bookmark-fill text-primary"></i>
+                        {% elif status == 'applied' %}
+                            <i class="bi bi-send-fill text-info"></i>
+                        {% elif status == 'interviewing' %}
+                            <i class="bi bi-people-fill text-warning"></i>
+                        {% elif status == 'offer' %}
+                            <i class="bi bi-trophy-fill text-success"></i>
+                        {% elif status == 'rejected' %}
+                            <i class="bi bi-x-circle-fill text-danger"></i>
+                        {% endif %}
+                        {{ status|title }} <span class="badge bg-secondary">{{ applications[status]|length }}</span>
+                    </h3>
+                    
+                    <div class="row g-3">
+                        {% for app in applications[status] %}
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ app.title }}</h5>
+                                        <h6 class="card-subtitle mb-2 text-muted">{{ app.company }}</h6>
+                                        <p class="card-text">
+                                            <i class="bi bi-geo-alt"></i> {{ app.location }}<br>
+                                            {% if app.salary_min or app.salary_max %}
+                                            <i class="bi bi-cash"></i> 
+                                            {% if app.salary_min and app.salary_max %}
+                                                ${{ "{:,}".format(app.salary_min) }} - ${{ "{:,}".format(app.salary_max) }}
+                                            {% elif app.salary_min %}
+                                                ${{ "{:,}".format(app.salary_min) }}+
+                                            {% elif app.salary_max %}
+                                                Up to ${{ "{:,}".format(app.salary_max) }}
+                                            {% endif %}
+                                            <br>
+                                            {% endif %}
+                                            {% if app.applied_date %}
+                                            <i class="bi bi-calendar"></i> Applied: {{ app.applied_date }}<br>
+                                            {% endif %}
+
+                                        </p>
+                                        
+                                        {% if app.url %}
+                                        <a href="{{ app.url }}" target="_blank" class="btn btn-sm btn-outline-primary mb-2">
+                                            <i class="bi bi-box-arrow-up-right"></i> View Job
+                                        </a>
                                         {% endif %}
-                                        {% if app.notes %}
-                                        <i class="bi bi-sticky"></i> {{ app.notes }}
-                                        {% endif %}
-                                    </p>
+                                        
+                                        <!-- Status change buttons -->
+                                        <div class="btn-group d-block" role="group">
+                                            {% if status == 'saved' %}
+                                                <button class="btn btn-sm btn-success update-status" data-job-id="{{ app.job_id }}" data-status="applied">
+                                                    <i class="bi bi-send"></i> Mark Applied
+                                                </button>
+                                            {% elif status == 'applied' %}
+                                                <button class="btn btn-sm btn-warning update-status" data-job-id="{{ app.job_id }}" data-status="interviewing">
+                                                    <i class="bi bi-people"></i> Interviewing
+                                                </button>
+                                                <button class="btn btn-sm btn-danger update-status" data-job-id="{{ app.job_id }}" data-status="rejected">
+                                                    <i class="bi bi-x-circle"></i> Rejected
+                                                </button>
+                                            {% elif status == 'interviewing' %}
+                                                <button class="btn btn-sm btn-success update-status" data-job-id="{{ app.job_id }}" data-status="offer">
+                                                    <i class="bi bi-trophy"></i> Got Offer
+                                                </button>
+                                                <button class="btn btn-sm btn-danger update-status" data-job-id="{{ app.job_id }}" data-status="rejected">
+                                                    <i class="bi bi-x-circle"></i> Rejected
+                                                </button>
+                                            {% elif status == 'offer' %}
+                                                <button class="btn btn-sm btn-success update-status" data-job-id="{{ app.job_id }}" data-status="accepted">
+                                                    <i class="bi bi-check-circle"></i> Accept Offer
+                                                </button>
+                                                <button class="btn btn-sm btn-secondary update-status" data-job-id="{{ app.job_id }}" data-status="rejected">
+                                                    <i class="bi bi-x"></i> Decline
+                                                </button>
+                                            {% endif %}
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 </div>
             {% endif %}
         {% endfor %}
     {% else %}
         <div class="alert alert-info">
             <h5><i class="bi bi-inbox"></i> No Applications Yet</h5>
-            <p class="mb-0">Start by <a href="{{ url_for('search') }}" class="alert-link">searching for jobs</a>!</p>
+            <p class="mb-0">Start by <a href="{{ url_for('search') }}" class="alert-link">searching for jobs</a> and saving ones you're interested in!</p>
         </div>
     {% endif %}
 </div>
+
+
+<script>
+// Handle status updates
+document.querySelectorAll('.update-status').forEach(button => {
+    button.addEventListener('click', async function() {
+        const jobId = this.dataset.jobId;
+        const newStatus = this.dataset.status;
+        
+        if (!confirm(`Move this job to ${newStatus}?`)) return;
+        
+        try {
+            const response = await fetch('/api/update_job_status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    job_id: jobId,
+                    status: newStatus
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Reload page to show updated pipeline
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error updating status:', error);
+            alert('Failed to update job status');
+        }
+    });
+});
+
+
+</script>
 {% endblock %}

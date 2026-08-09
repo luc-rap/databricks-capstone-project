@@ -1,5 +1,8 @@
 # Job Search MCP Server App Configuration
 # Deploy this as a separate Databricks App from the dashboard
+#
+# This MCP server provides job search and application tracking tools
+# using Lakebase Postgres as the backend data store.
 
 command:
   - "python"
@@ -8,18 +11,9 @@ command:
 env:
   - name: LOG_LEVEL
     value: "INFO"
-  - name: ADZUNA_APP_ID
-    valueFrom:
-      secretKeyRef:
-        scope: "adzuna"
-        key: "app-id"
-  - name: ADZUNA_APP_KEY
-    valueFrom:
-      secretKeyRef:
-        scope: "adzuna"
-        key: "app-key"
-  # Optional: Add Lakebase connection if MCP server needs direct DB access
-  # - name: LAKEBASE_SECRET_SCOPE
-  #   value: "database"
-  # - name: LAKEBASE_SECRET_KEY
-  #   value: "lakebase-url"
+  # Lakebase connection secrets are accessed via Databricks SDK
+  # The adapter reads from the "database" secret scope:
+  #   - lakebase-url: Connection URL
+  #   - lakebase-endpoint: Endpoint resource name (optional, will auto-discover)
+  #
+  # No explicit environment variables needed here - the SDK handles authentication

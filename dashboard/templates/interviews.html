@@ -6,22 +6,195 @@
 <div class="container-fluid">
     <h1 class="mb-4"><i class="bi bi-calendar-check"></i> Interview Notes & Follow-ups</h1>
     
-    <div class="alert alert-info">
-        <h5><i class="bi bi-info-circle"></i> Coming Soon</h5>
-        <p class="mb-0">Interview tracking and notes management is currently under development.</p>
-    </div>
-    
-    <div class="card">
-        <div class="card-body">
-            <h4>Planned Features:</h4>
-            <ul>
-                <li><i class="bi bi-check2"></i> Track interview schedules and deadlines</li>
-                <li><i class="bi bi-check2"></i> Take detailed notes for each interview</li>
-                <li><i class="bi bi-check2"></i> Set follow-up reminders</li>
-                <li><i class="bi bi-check2"></i> Prepare with AI-generated interview questions</li>
-                <li><i class="bi bi-check2"></i> Store contact information for interviewers</li>
-            </ul>
+    {% if applications %}
+        <div class="row">
+            {% for app in applications %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ app.title }}</h5>
+                        <h6 class="card-subtitle mb-3 text-muted">{{ app.company }}</h6>
+                        
+                        <p class="card-text">
+                            <i class="bi bi-geo-alt"></i> {{ app.location }}<br>
+                            {% if app.applied_date %}
+                            <i class="bi bi-calendar"></i> Applied: {{ app.applied_date }}<br>
+                            {% endif %}
+                        </p>
+                        
+                        {% if app.url %}
+                        <a href="{{ app.url }}" target="_blank" class="btn btn-sm btn-outline-primary mb-3">
+                            <i class="bi bi-box-arrow-up-right"></i> View Job
+                        </a>
+                        {% endif %}
+                        
+                        <!-- Interview Notes Section -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2">
+                                    <i class="bi bi-journal-text"></i> Interview Notes
+                                </h6>
+                                {% if app.notes %}
+                                <p class="card-text small" style="white-space: pre-wrap;">{{ app.notes }}</p>
+                                {% else %}
+                                <p class="card-text small text-muted">No notes yet</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-sm btn-primary edit-notes" 
+                                    data-job-id="{{ app.job_id }}" 
+                                    data-current-notes="{{ app.notes or '' }}">
+                                <i class="bi bi-pencil"></i> {% if app.notes %}Edit Notes{% else %}Add Notes{% endif %}
+                            </button>
+                            
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-success update-status" 
+                                        data-job-id="{{ app.job_id }}" 
+                                        data-status="offer">
+                                    <i class="bi bi-trophy"></i> Got Offer
+                                </button>
+                                <button class="btn btn-sm btn-danger update-status" 
+                                        data-job-id="{{ app.job_id }}" 
+                                        data-status="rejected">
+                                    <i class="bi bi-x"></i> Rejected
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <h5><i class="bi bi-inbox"></i> No Active Interviews</h5>
+            <p class="mb-0">You don't have any applications in the interviewing stage yet. Move applications to "Interviewing" from your <a href="{{ url_for('pipeline') }}" class="alert-link">pipeline</a> to track interview notes here.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Interview Notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Add your interview notes, questions, feedback, and follow-up items:</label>
+                    <textarea class="form-control" id="notesText" rows="8" placeholder="Example:
+
+Interview Date: 2024-01-15
+Interviewer: John Doe, Engineering Manager
+
+Questions Asked:
+- Technical: Explained system design for distributed cache
+- Behavioral: Discussed team conflict resolution
+
+Key Points:
+- Company is growing quickly (50 to 200 engineers this year)
+- Tech stack: Python, React, AWS
+- Remote-friendly culture
+
+Next Steps:
+- Technical assessment due by Jan 20
+- Follow up with recruiter on benefits package"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveNotes">Save Notes</button>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentJobId = null;
+    const notesModalElement = document.getElementById('notesModal');
+    const notesModal = new bootstrap.Modal(notesModalElement);
+
+    // Handle notes editing
+    document.querySelectorAll('.edit-notes').forEach(button => {
+        button.addEventListener('click', function() {
+            currentJobId = this.dataset.jobId;
+            document.getElementById('notesText').value = this.dataset.currentNotes || '';
+            notesModal.show();
+        });
+    });
+
+    document.getElementById('saveNotes').addEventListener('click', async function() {
+        const notes = document.getElementById('notesText').value;
+        
+        try {
+            const response = await fetch('/api/update_job_status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    job_id: currentJobId,
+                    status: 'interviewing',
+                    notes: notes
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                notesModal.hide();
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error saving notes:', error);
+            alert('Failed to save notes');
+        }
+    });
+
+    // Handle status updates
+    document.querySelectorAll('.update-status').forEach(button => {
+        button.addEventListener('click', async function() {
+            const jobId = this.dataset.jobId;
+            const newStatus = this.dataset.status;
+            const statusLabel = newStatus === 'offer' ? 'Offer' : 'Rejected';
+            
+            if (!confirm(`Move this application to "${statusLabel}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/update_job_status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_id: jobId,
+                        status: newStatus
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+                alert('Failed to update status');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -17,8 +17,39 @@ from sentence_transformers import SentenceTransformer
 from PyPDF2 import PdfReader
 
 import lakebase
+from assistant_client import DatabricksAssistantClient
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # For session management
+
+# Initialize Assistant client (singleton pattern)
+assistant_client = None
+
+def get_assistant_client():
+    """Get or create the Assistant client with app authentication.
+    
+    In Databricks Apps, authentication comes from request headers.
+    """
+    global assistant_client
+    if assistant_client is None:
+        # Get authentication from request headers (Databricks App context)
+        token = request.headers.get('X-Forwarded-Access-Token')
+        
+        # Get workspace URL from environment or request
+        workspace_url = os.getenv('DATABRICKS_HOST') or request.host_url.rstrip('/')
+        
+        # Remove any path from workspace URL if present
+        if workspace_url and '://' in workspace_url:
+            parts = workspace_url.split('://')
+            protocol = parts[0]
+            host = parts[1].split('/')[0]
+            workspace_url = f"{protocol}://{host}"
+        
+        assistant_client = DatabricksAssistantClient(
+            token=token,
+            workspace_url=workspace_url
+        )
+    return assistant_client
 
 # Initialize Databricks SDK
 w = WorkspaceClient()
@@ -30,7 +61,12 @@ print("Embedding model loaded!")
 
 
 def get_current_user():
-    """Get current user from Databricks context."""
+    """Get current user from session or Databricks context."""
+    # Check if a profile is selected in the session
+    if 'selected_profile' in session:
+        return session['selected_profile']
+    
+    # Otherwise, use the authenticated Databricks user
     try:
         current_user = w.current_user.me()
         return {
@@ -66,6 +102,26 @@ def get_or_create_user(email, full_name):
         return None
 
 
+def parse_pg_array(value):
+    """Convert PostgreSQL array string to Python list.
+    
+    PostgreSQL arrays are returned as strings like '{val1,val2}' by psycopg2.
+    This function converts them to proper Python lists.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value  # Already a list
+    if isinstance(value, str):
+        # Remove curly braces and split by comma
+        if value.startswith('{') and value.endswith('}'):
+            value = value[1:-1]
+        if not value:
+            return []
+        return [item.strip('"').strip() for item in value.split(',')]
+    return []
+
+
 @app.route('/')
 def index():
     """Home page with overview and stats."""
@@ -82,7 +138,7 @@ def index():
     if user_id:
         try:
             stats['saved'] = lakebase.run_query(
-                "SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = %s",
+                "SELECT COUNT(*) as count FROM applications WHERE user_id = %s",
                 (user_id,)
             )[0]['count']
             
@@ -121,8 +177,15 @@ def profile():
             )
             if profiles:
                 profile_data = profiles[0]
+                # Convert PostgreSQL arrays to Python lists for template
+                if 'target_roles' in profile_data:
+                    profile_data['target_roles'] = parse_pg_array(profile_data['target_roles'])
+                if 'location_preferences' in profile_data:
+                    profile_data['location_preferences'] = parse_pg_array(profile_data['location_preferences'])
         except Exception as e:
             print(f"Error loading profile: {e}")
+            import traceback
+            traceback.print_exc()
     
     return render_template('profile.html', user=user, profile=profile_data)
 
@@ -619,11 +682,149 @@ def pipeline():
     return render_template('pipeline.html', user=user, applications=grouped)
 
 
+@app.route('/api/save_job', methods=['POST'])
+def save_job():
+    """API endpoint to save a job to the pipeline."""
+    try:
+        data = request.json
+        job_id = data.get('job_id')
+        status = data.get('status', 'saved')
+        notes = data.get('notes', '')
+        
+        if not job_id:
+            return jsonify({'success': False, 'error': 'Job ID is required'}), 400
+        
+        # Get current user
+        user = get_current_user()
+        user_id = get_or_create_user(user['email'], user['name'])
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'User not found'}), 400
+        
+        # Check if application already exists
+        existing = lakebase.run_query(
+            "SELECT application_id FROM applications WHERE user_id = %s AND job_id = %s",
+            (user_id, job_id)
+        )
+        
+        if existing:
+            # Update existing application
+            lakebase.run_write(
+                "UPDATE applications SET status = %s, notes = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s AND job_id = %s",
+                (status, notes, user_id, job_id)
+            )
+            application_id = existing[0]['application_id']
+        else:
+            # Insert new application
+            lakebase.run_write(
+                "INSERT INTO applications (user_id, job_id, status, notes, created_at, updated_at) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                (user_id, job_id, status, notes)
+            )
+            # Get the new application_id
+            result = lakebase.run_query(
+                "SELECT application_id FROM applications WHERE user_id = %s AND job_id = %s",
+                (user_id, job_id)
+            )
+            application_id = result[0]['application_id'] if result else None
+        
+        return jsonify({
+            'success': True,
+            'message': f'Job saved to {status} stage',
+            'application_id': application_id
+        })
+    
+    except Exception as e:
+        print(f"Error saving job: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/update_job_status', methods=['POST'])
+def update_job_status():
+    """API endpoint to update job status in the pipeline."""
+    try:
+        data = request.json
+        job_id = data.get('job_id')
+        new_status = data.get('status')
+        notes = data.get('notes', '')
+        
+        if not job_id or not new_status:
+            return jsonify({'success': False, 'error': 'Job ID and status are required'}), 400
+        
+        # Validate status
+        valid_statuses = ['saved', 'applied', 'interviewing', 'offer', 'rejected', 'accepted']
+        if new_status not in valid_statuses:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'
+            }), 400
+        
+        # Get current user
+        user = get_current_user()
+        user_id = get_or_create_user(user['email'], user['name'])
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'User not found'}), 400
+        
+        # Check if application exists
+        existing = lakebase.run_query(
+            "SELECT application_id FROM applications WHERE user_id = %s AND job_id = %s",
+            (user_id, job_id)
+        )
+        
+        if existing:
+            # Update existing application status
+            lakebase.run_write(
+                "UPDATE applications SET status = %s, notes = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s AND job_id = %s",
+                (new_status, notes, user_id, job_id)
+            )
+            return jsonify({
+                'success': True,
+                'message': f'Job moved to {new_status}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Application not found'
+            }), 404
+    
+    except Exception as e:
+        print(f"Error updating job status: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/interviews')
 def interviews():
     """Interview tracking page."""
     user = get_current_user()
-    return render_template('interviews.html', user=user)
+    user_id = get_or_create_user(user['email'], user['name'])
+    
+    interviewing_apps = []
+    if user_id:
+        try:
+            interviewing_apps = lakebase.run_query(
+                """
+                SELECT a.*, j.title, j.company, j.location, j.url
+                FROM applications a
+                JOIN job_postings j ON a.job_id = j.job_id
+                WHERE a.user_id = %s AND a.status = 'interviewing'
+                ORDER BY a.updated_at DESC
+                """,
+                (user_id,)
+            )
+        except Exception as e:
+            print(f"Error loading interviewing applications: {e}")
+    
+    return render_template('interviews.html', user=user, applications=interviewing_apps)
 
 
 @app.route('/assistant')
@@ -635,16 +836,150 @@ def assistant():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """API endpoint for chat messages."""
+    """API endpoint for chat messages - integrated with Databricks Assistant API."""
     data = request.json
-    message = data.get('message', '')
+    message = data.get('message', '').strip()
+    conversation_id = data.get('conversation_id')  # Optional: reuse existing conversation
     
-    # TODO: Integrate with Databricks Agent and MCP server
-    response = {
-        'reply': "AI assistant integration coming soon! I'll be able to help you search jobs, track applications, and more."
+    if not message:
+        return jsonify({'success': False, 'error': 'Message is required'}), 400
+    
+    try:
+        # Get current user for context
+        user = get_current_user()
+        user_email = user['email']
+        
+        # Get or create Assistant client
+        client = get_assistant_client()
+        
+        # Create a new conversation if needed (with auto MCP discovery)
+        if not conversation_id and not client.conversation_id:
+            try:
+                conversation_id = client.create_conversation(
+                    user_email=user_email,
+                    auto_discover_mcp=True  # Automatically discover and attach MCP servers
+                )
+            except Exception as conv_error:
+                print(f"Warning: Could not create conversation with MCP: {conv_error}")
+                # Fallback: create conversation without MCP
+                conversation_id = client.create_conversation(
+                    user_email=user_email,
+                    auto_discover_mcp=False
+                )
+        
+        # Send message to Assistant
+        result = client.send_message(message, conversation_id=conversation_id)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'reply': result['reply'],
+                'conversation_id': result['conversation_id'],
+                'message_id': result.get('message_id')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'reply': result['reply'],
+                'error': result.get('error', 'Unknown error')
+            }), 500
+    
+    except Exception as e:
+        print(f"Error in chat endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'reply': 'Sorry, I encountered an unexpected error. Please try again.'
+        }), 500
+
+
+@app.route('/api/profiles', methods=['GET'])
+def get_profiles():
+    """Get all user profiles."""
+    try:
+        profiles = lakebase.run_query(
+            "SELECT email, full_name FROM users ORDER BY full_name"
+        )
+        return jsonify({
+            'success': True,
+            'profiles': profiles
+        })
+    except Exception as e:
+        print(f"Error fetching profiles: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/profiles/current', methods=['GET'])
+def get_current_profile():
+    """Get currently selected profile."""
+    user = get_current_user()
+    return jsonify({
+        'success': True,
+        'profile': user
+    })
+
+
+@app.route('/api/profiles/switch', methods=['POST'])
+def switch_profile():
+    """Switch to a different profile."""
+    data = request.json
+    email = data.get('email')
+    name = data.get('name')
+    
+    if not email or not name:
+        return jsonify({'success': False, 'error': 'Email and name are required'}), 400
+    
+    # Store selected profile in session
+    session['selected_profile'] = {
+        'email': email,
+        'name': name
     }
     
-    return jsonify(response)
+    return jsonify({
+        'success': True,
+        'profile': session['selected_profile']
+    })
+
+
+@app.route('/api/profiles/create', methods=['POST'])
+def create_profile():
+    """Create a new profile."""
+    data = request.json
+    email = data.get('email')
+    name = data.get('name')
+    
+    if not email or not name:
+        return jsonify({'success': False, 'error': 'Email and name are required'}), 400
+    
+    try:
+        # Create user in database
+        user_id = get_or_create_user(email, name)
+        
+        if user_id:
+            # Switch to the new profile
+            session['selected_profile'] = {
+                'email': email,
+                'name': name
+            }
+            return jsonify({
+                'success': True,
+                'profile': session['selected_profile']
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to create profile'}), 500
+    except Exception as e:
+        print(f"Error creating profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/profiles/clear', methods=['POST'])
+def clear_profile():
+    """Clear selected profile and return to authenticated user."""
+    if 'selected_profile' in session:
+        session.pop('selected_profile')
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

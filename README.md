@@ -1,10 +1,11 @@
-# AI Job Hunting Copilot
+# AI Job Hunting Copilot - Databricks AI Capstone project
 
 An AI-powered job search assistant built on Databricks, combining:
 - **Lakebase** (Postgres) for structured data storage
 - **MCP Server** for AI agent tool integration
-- **Streamlit Frontend** for user interaction
+- **Flask** for user interaction
 - **Adzuna API** for job search data
+-- CDF and data pipeline requirements were dropped as per intructions (not supported in free edition)
 
 ## Features
 
@@ -25,9 +26,8 @@ An AI-powered job search assistant built on Databricks, combining:
 - Prepare for interviews
 
 ### 👤 User Profile Management
-- Store skills, experience, and career preferences
-- Resume/bio with semantic embeddings
-- Salary range and location preferences
+- Upload CV and store resume and skills
+- Add target roles, preferred locations, salary range, job preferences
 
 ## Architecture
 
@@ -64,16 +64,10 @@ databricks-capstone-project/
 ### 2. Set up Lakebase
 1. Create a Lakebase Postgres database in your Databricks workspace
 2. Get the connection URL
-3. Run the SQL schema:
-   ```sql
-   -- Connect to your Lakebase database
-   -- Run: sql/create_tables.sql
-   ```
+3. Run the SQL
 
 ### 3. Configure Secrets
 ```bash
-# From your local machine with Databricks CLI configured
-cd databricks-capstone-project
 python setup_secrets.py
 ```
 
@@ -83,21 +77,9 @@ This will prompt for:
 
 ### 4. Deploy Apps
 
-#### Deploy MCP Server
-```bash
-databricks apps deploy job-search-mcp \
-  --source-dir mcp_server/ \
-  --config-file mcp_server/app.yaml
-```
+- Deploy MCP Server in Databricks
+- Deploy Dashboard in Databricks
 
-Note the app URL - you'll register this with your AI agent.
-
-#### Deploy Dashboard
-```bash
-databricks apps deploy job-hunting-dashboard \
-  --source-dir dashboard/ \
-  --config-file dashboard/app.yaml
-```
 
 ### 5. Ingest Job Postings
 Run the `dashboard/notebooks/ingest_job_embeddings` notebook to:
@@ -109,6 +91,12 @@ Schedule this to run daily/weekly to refresh job listings.
 
 ### 6. Connect AI Agent
 Register the MCP server URL with your Databricks AI Agent to enable tool calling.
+
+**📚 For detailed integration guidance**, see [mcp_server/ASSISTANT_INTEGRATION.md](mcp_server/ASSISTANT_INTEGRATION.md) for:
+- Complete tool reference with examples
+- Conversational workflow patterns
+- Best practices for semantic search and matching
+- Error handling and multi-profile support
 
 ## Database Schema
 
@@ -131,19 +119,38 @@ The MCP server exposes these tools to AI agents:
 - `get_job_categories()`
 
 ### Application Management
-- `save_job(job_id, match_score, reasoning)`
-- `update_application_status(job_id, status, notes)`
-- `add_interview_note(job_id, interview_date, interview_type, notes, follow_up_date)`
-- `get_stale_applications(days_threshold)`
-- `draft_cover_letter(job_id, job_description, user_profile)`
+- `save_job(job_id, match_score, reasoning)` - Save a job to your pipeline
+- `update_application_status(job_id, status, notes)` - Move jobs through stages (saved → applied → interviewing → rejected/offer)
+- `get_my_applications(stage)` - Query all applications, optionally filtered by stage
+
+### Interview & Follow-up
+- `add_interview_note(job_id, interview_date, interview_type, notes, follow_up_date)` - Track interviews with notes and reminders
+  - Interview types: `phone_screen`, `technical`, `behavioral`, `onsite`, `final`
+- `get_stale_applications(days_threshold)` - Find applications not updated in X days (default 14)
+  - Excludes terminal stages (rejected, accepted)
+- `get_cover_letter_context(job_id)` - Get structured job + profile data for AI-generated cover letters
+
+### Profile Management
+- `store_user_profile(resume_text, target_roles, skills, ...)` - Create/update user profile
+- `get_user_info()` - Retrieve current user's profile and preferences
 
 ## TODO / Future Enhancements
 
+### Completed ✅
+- [x] Interview notes and follow-up tracking with `add_interview_note()`
+- [x] Stale application detection with `get_stale_applications()`
+- [x] Cover letter context API with `get_cover_letter_context()`
+- [x] Multi-profile support (session-based profile switching)
+- [x] Profile management tools (`store_user_profile`, `get_user_info`)
+
+### In Progress 🚧
 - [ ] Implement semantic search with embeddings
 - [ ] Integrate Databricks Foundation Model API for:
   - Resume/job description embeddings
-  - Cover letter generation
-  - Interview preparation
+  - AI-generated cover letter drafting (context API ready)
+  - Interview preparation suggestions
+
+### Future Ideas 🔮
 - [ ] Add analytics dashboard (application funnel, success metrics)
 - [ ] Email integration for application tracking
 - [ ] Calendar integration for interview scheduling
