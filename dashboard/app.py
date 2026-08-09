@@ -47,7 +47,7 @@ def get_assistant_client():
     token = request.headers.get('X-Forwarded-Access-Token')
     
     # Use the actual Databricks workspace URL, not the app URL
-    workspace_url = 'https://dbc-3a633606-aea2.cloud.databricks.com'
+    workspace_url = '<workspace_url>'
     
     print(f"Token present: {bool(token)}")
     print(f"Workspace URL: {workspace_url}")
