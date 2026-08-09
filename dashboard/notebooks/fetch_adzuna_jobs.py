@@ -22,8 +22,8 @@ import sys
 # ============================================
 # CONFIGURATION - Update these values
 # ============================================
-ADZUNA_APP_ID = "e4d48995"  # Replace with your actual app_id
-ADZUNA_APP_KEY = "e39d07496ee3397cdab1ecd4ff063097"  # Replace with your actual app_key
+ADZUNA_APP_ID = ""  # Replace with your actual app_id
+ADZUNA_APP_KEY = ""  # I revoked the key... but go to https://developer.adzuna.com/ and just get your own
 
 SEARCH_QUERY = "data engineer"
 LOCATION_FILTER = "Florida"  # Leave empty "" for all US
