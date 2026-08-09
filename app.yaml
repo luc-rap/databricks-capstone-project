@@ -1,6 +1,6 @@
 command:
   - "python"
-  - "app.py"
+  - "dashboard/app.py"
 
 # OAuth scopes required by the app
 # model-serving: Required to call Databricks Foundation Model endpoints

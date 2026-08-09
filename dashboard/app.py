@@ -11,7 +11,10 @@ A Databricks App that provides:
 import os
 import re
 import io
+import json
+from decimal import Decimal
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask.json.provider import DefaultJSONProvider
 from databricks.sdk import WorkspaceClient
 from sentence_transformers import SentenceTransformer
 from PyPDF2 import PdfReader
@@ -19,36 +22,39 @@ from PyPDF2 import PdfReader
 import lakebase
 from assistant_client import DatabricksAssistantClient
 
+
+class DecimalJSONProvider(DefaultJSONProvider):
+    """Custom JSON provider that handles Decimal types from database results."""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For session management
+app.json = DecimalJSONProvider(app)  # Use custom JSON encoder for all jsonify() calls
 
 # Initialize Assistant client (singleton pattern)
 assistant_client = None
 
 def get_assistant_client():
-    """Get or create the Assistant client with app authentication.
-    
-    In Databricks Apps, authentication comes from request headers.
-    """
     global assistant_client
-    if assistant_client is None:
-        # Get authentication from request headers (Databricks App context)
-        token = request.headers.get('X-Forwarded-Access-Token')
-        
-        # Get workspace URL from environment or request
-        workspace_url = os.getenv('DATABRICKS_HOST') or request.host_url.rstrip('/')
-        
-        # Remove any path from workspace URL if present
-        if workspace_url and '://' in workspace_url:
-            parts = workspace_url.split('://')
-            protocol = parts[0]
-            host = parts[1].split('/')[0]
-            workspace_url = f"{protocol}://{host}"
-        
+    
+    token = request.headers.get('X-Forwarded-Access-Token')
+    
+    # Use the actual Databricks workspace URL, not the app URL
+    workspace_url = 'https://dbc-3a633606-aea2.cloud.databricks.com'
+    
+    print(f"Token present: {bool(token)}")
+    print(f"Workspace URL: {workspace_url}")
+    
+    if not assistant_client:
         assistant_client = DatabricksAssistantClient(
             token=token,
             workspace_url=workspace_url
         )
+    
     return assistant_client
 
 # Initialize Databricks SDK

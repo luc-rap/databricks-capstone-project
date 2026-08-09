@@ -9,16 +9,61 @@ import os
 import json
 import time
 import uuid
+import requests
+from decimal import Decimal
 from typing import Optional, Dict, Any, List
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 import sys
 
-# Add MCP server to path
-mcp_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'mcp_server')
-if mcp_path not in sys.path:
-    sys.path.insert(0, mcp_path)
 
+from decimal import Decimal
+from datetime import datetime, date, time
+
+class DecimalEncoder(json.JSONEncoder):
+    """JSON encoder for database and Python objects."""
+
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+
+        if isinstance(obj, (datetime, date, time)):
+            return obj.isoformat()
+
+        if isinstance(obj, UUID):
+            return str(obj)
+
+        return super().default(obj)
+
+# Add mcp_server to Python path
+# When deployed from root, structure is:
+#   /app/dashboard/assistant_client.py (this file)
+#   /app/mcp_server/adzuna_adapter.py (what we need to import)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+mcp_path = os.path.join(project_root, 'mcp_server')
+
+print(f"Project root: {project_root}")
+print(f"MCP server path: {mcp_path}")
+print(f"MCP server exists: {os.path.exists(mcp_path)}")
+print(f"Current working directory: {os.getcwd()}")
+print(f"sys.path: {sys.path[:3]}")  # First 3 entries
+
+if os.path.exists(mcp_path):
+    sys.path.insert(0, mcp_path)
+    print(f"✓ Added {mcp_path} to sys.path")
+else:
+    print(f"⚠ MCP server directory not found at {mcp_path}")
+    # List what's actually in project root
+    print(f"Contents of {project_root}: {os.listdir(project_root) if os.path.exists(project_root) else 'not found'}")
+sys.path.insert(0, '/app/python/mcp_server')
+
+print(f"Current dir: {os.getcwd()}")
+print(f"__file__: {__file__}")
+print(f"sys.path: {sys.path}")
+# List what's in parent directory
+parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print(f"Parent contents: {os.listdir(parent)}")
+    
 
 class DatabricksAssistantClient:
     """AI Assistant using Databricks Foundation Models with Unity Catalog auth."""
@@ -31,19 +76,23 @@ class DatabricksAssistantClient:
             workspace_url: Workspace URL (in Databricks Apps)
         """
         try:
-            # Create WorkspaceClient with proper authentication
+            # OAuth-only authentication
             if token and workspace_url:
-                # Databricks App context - create client with explicit token
-                # Ensure workspace URL has https:// scheme
+                # Databricks App context with OAuth token from user
                 if workspace_url and not workspace_url.startswith(('http://', 'https://')):
                     workspace_url = f"https://{workspace_url}"
-                
-                self.w = WorkspaceClient(
-                    host=workspace_url,
-                    token=token
-                )
+    
                 self.workspace_url = workspace_url
-                self.token = token
+                self.token = token  # Use the OAuth token directly
+        
+                # Try to create WorkspaceClient - first with OAuth from env, fallback to no auth
+                try:
+                    # Attempt to use app's service principal OAuth if available
+                    self.w = WorkspaceClient(host=workspace_url)
+                except:
+                    # Fallback: create minimal client (we'll use token directly in API calls)
+                    print("Warning: WorkspaceClient initialization failed, using direct API calls")
+                    self.w = None
             else:
                 # Notebook context - use default authentication
                 try:
@@ -73,8 +122,9 @@ class DatabricksAssistantClient:
             
             print(f"✓ Initialized with Databricks Foundation Model: {self.model_endpoint}")
             print(f"✓ Workspace: {self.workspace_url}")
-            print(f"✓ Token: {'Present' if self.token else 'Missing'}")
-            print(f"✓ Using SDK serving endpoint client for proper authentication")
+            print(f"✓ OAuth token: {'Present' if self.token else 'Missing'}")
+            print(f"✓ SDK client: {'Initialized' if self.w else 'Using direct API calls'}")
+            print(f"✓ Authentication: OAuth token from user (direct API calls if needed)")
             
         except Exception as e:
             print(f"❌ Failed to initialize assistant client: {e}")
@@ -301,13 +351,47 @@ User context: {user_email or 'unknown'}"""
                 ))
             
             try:
-                # Use SDK to call serving endpoint with proper authentication
-                response = self.w.serving_endpoints.query(
-                    name=self.model_endpoint,
-                    messages=sdk_messages,
-                    max_tokens=1024,
-                    temperature=0.7
-                )
+                # Use SDK to call serving endpoint if available, otherwise direct API call
+                if self.w:
+                    response = self.w.serving_endpoints.query(
+                        name=self.model_endpoint,
+                        messages=sdk_messages,
+                        max_tokens=1024,
+                        temperature=0.7
+                    )
+                else:
+                    # Direct API call with OAuth token
+                    import requests
+                    api_response = requests.post(
+                        f"{self.workspace_url}/serving-endpoints/{self.model_endpoint}/invocations",
+                        headers={
+                            "Authorization": f"Bearer {self.token}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "messages": [{
+                                "role": msg.role.value,
+                                "content": msg.content
+                            } for msg in sdk_messages],
+                            "max_tokens": 1024,
+                            "temperature": 0.7
+                        },
+                        timeout=60
+                    )
+                    
+                    if api_response.status_code != 200:
+                        raise Exception(f"API returned {api_response.status_code}: {api_response.text}")
+                
+                    result = api_response.json()
+                    response = ChatResponse(
+                        choices=[ChatChoice(
+                            index=0,
+                            message=ChatMessage(
+                                role=ChatMessageRole.ASSISTANT,
+                                content=result['choices'][0]['message']['content']
+                            )
+                        )]
+                    )
                 
                 # Extract response from SDK result
                 if response.choices and len(response.choices) > 0:
@@ -353,7 +437,7 @@ Try checking available endpoints with: databricks serving-endpoints list"""
                 for tool_name, tool_args in tool_calls:
                     print(f"Calling tool: {tool_name}({tool_args})")
                     result = self._execute_tool(tool_name, tool_args)
-                    tool_results.append(f"{tool_name} returned: {json.dumps(result, indent=2)}")
+                    tool_results.append(f"{tool_name} returned: {json.dumps(result, indent=2, cls=DecimalEncoder)}")
                 
                 # Add tool results to history and get final response
                 tool_context = "\n\n".join(tool_results)
@@ -386,12 +470,46 @@ Try checking available endpoints with: databricks serving-endpoints list"""
                     ))
                 
                 try:
-                    final_response = self.w.serving_endpoints.query(
-                        name=self.model_endpoint,
-                        messages=final_sdk_messages,
-                        max_tokens=512,
-                        temperature=0.7
-                    )
+                    if self.w:
+                        final_response = self.w.serving_endpoints.query(
+                            name=self.model_endpoint,
+                            messages=final_sdk_messages,
+                            max_tokens=512,
+                            temperature=0.7
+                        )
+                    else:
+                        # Direct API call
+                        import requests
+                        api_response = requests.post(
+                            f"{self.workspace_url}/serving-endpoints/{self.model_endpoint}/invocations",
+                            headers={
+                                "Authorization": f"Bearer {self.token}",
+                                "Content-Type": "application/json"
+                            },
+                            json={
+                                "messages": [{
+                                    "role": msg.role.value,
+                                    "content": msg.content
+                                } for msg in final_sdk_messages],
+                                "max_tokens": 512,
+                                "temperature": 0.7
+                            },
+                            timeout=60
+                        )
+                        
+                        if api_response.status_code != 200:
+                            raise Exception(f"API returned {api_response.status_code}: {api_response.text}")
+                        
+                        result = api_response.json()
+                        final_response = ChatResponse(
+                            choices=[ChatChoice(
+                                index=0,
+                                message=ChatMessage(
+                                    role=ChatMessageRole.ASSISTANT,
+                                    content=result['choices'][0]['message']['content']
+                                )
+                            )]
+                        )
                     
                     if final_response.choices and len(final_response.choices) > 0:
                         reply = final_response.choices[0].message.content
