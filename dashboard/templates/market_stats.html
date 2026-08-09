@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Job Market Statistics - AI Job Hunting Copilot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-bar-chart-fill"></i> Job Market Statistics</h1>
+    
+    <div id="loadingIndicator" class="text-center my-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading market statistics...</p>
+    </div>
+    
+    <div id="statsContent" style="display: none;">
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Total Jobs</h6>
+                        <h2 class="card-title" id="totalJobs">-</h2>
+                        <p class="text-muted small">Active postings</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Avg Salary</h6>
+                        <h2 class="card-title" id="avgSalary">-</h2>
+                        <p class="text-muted small">Per year</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Remote Jobs</h6>
+                        <h2 class="card-title" id="remoteJobs">-</h2>
+                        <p class="text-muted small">Of total</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Salary Range</h6>
+                        <h2 class="card-title" id="salaryRange">-</h2>
+                        <p class="text-muted small">Min - Max</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Row 1 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-geo-alt"></i> Top Locations</h5>
+                        <canvas id="locationsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-cash-stack"></i> Salary Distribution</h5>
+                        <canvas id="salaryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Row 2 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-building"></i> Top Companies</h5>
+                        <canvas id="companiesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-briefcase"></i> Top Job Titles</h5>
+                        <canvas id="titlesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const loadingIndicator = document.getElementById('loadingIndicator');
+const statsContent = document.getElementById('statsContent');
+
+window.addEventListener('DOMContentLoaded', async function() {
+    try {
+        console.log('Fetching market stats...');
+        const response = await fetch('/api/market-stats');
+        const data = await response.json();
+        
+        console.log('Response:', data);
+        
+        if (data.success) {
+            displayStats(data.stats);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        alert('Error: ' + error.message);
+    } finally {
+        loadingIndicator.style.display = 'none';
+        statsContent.style.display = 'block';
+    }
+});
+
+function displayStats(stats) {
+    // Update summary cards
+    document.getElementById('totalJobs').textContent = stats.total_jobs.toLocaleString();
+    document.getElementById('avgSalary').textContent = '$' + Math.round(stats.avg_salary).toLocaleString();
+    document.getElementById('remoteJobs').textContent = stats.remote_jobs.toLocaleString() + ' (' + stats.remote_percentage + '%)';
+    document.getElementById('salaryRange').textContent = '$' + Math.round(stats.min_salary).toLocaleString() + ' - $' + Math.round(stats.max_salary).toLocaleString();
+    
+    // Top Locations Chart
+    if (stats.top_locations && stats.top_locations.length > 0) {
+        new Chart(document.getElementById('locationsChart'), {
+            type: 'bar',
+            data: {
+                labels: stats.top_locations.map(function(l) { return l.location; }),
+                datasets: [{
+                    label: 'Number of Jobs',
+                    data: stats.top_locations.map(function(l) { return l.count; }),
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+    
+    // Salary Distribution Chart
+    if (stats.salary_distribution && stats.salary_distribution.length > 0) {
+        new Chart(document.getElementById('salaryChart'), {
+            type: 'line',
+            data: {
+                labels: stats.salary_distribution.map(function(d) { return d.range; }),
+                datasets: [{
+                    label: 'Number of Jobs',
+                    data: stats.salary_distribution.map(function(d) { return d.count; }),
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+    
+    // Top Companies Chart
+    if (stats.top_companies && stats.top_companies.length > 0) {
+        new Chart(document.getElementById('companiesChart'), {
+            type: 'doughnut',
+            data: {
+                labels: stats.top_companies.map(function(c) { return c.company; }),
+                datasets: [{
+                    data: stats.top_companies.map(function(c) { return c.count; }),
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)',
+                        'rgba(199, 199, 199, 0.8)',
+                        'rgba(83, 102, 255, 0.8)',
+                        'rgba(255, 99, 255, 0.8)',
+                        'rgba(99, 255, 132, 0.8)'
+                    ]
+                }]
+            },
+            options: { responsive: true }
+        });
+    }
+    
+    // Top Job Titles Chart
+    if (stats.top_titles && stats.top_titles.length > 0) {
+        new Chart(document.getElementById('titlesChart'), {
+            type: 'bar',
+            data: {
+                labels: stats.top_titles.map(function(t) { return t.title; }),
+                datasets: [{
+                    label: 'Number of Jobs',
+                    data: stats.top_titles.map(function(t) { return t.count; }),
+                    backgroundColor: 'rgba(153, 102, 255, 0.8)'
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                scales: { x: { beginAtZero: true } }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

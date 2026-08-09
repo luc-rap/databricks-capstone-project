@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Home - AI Job Hunting Copilot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-house-fill"></i> Welcome to AI Job Hunting Copilot</h1>
+    
+    <div class="alert alert-info">
+        <h5><i class="bi bi-robot"></i> Your AI-powered job search companion</h5>
+        <p class="mb-0">This tool helps you search for jobs, track applications, and get AI assistance throughout your job hunting journey.</p>
+    </div>
+
+    <h3 class="mt-4 mb-3">Quick Stats</h3>
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="bi bi-bookmark-fill" style="font-size: 2rem; color: #FF3621;"></i>
+                <h3>{{ stats.saved }}</h3>
+                <p>Saved Jobs</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="bi bi-send-fill" style="font-size: 2rem; color: #FF3621;"></i>
+                <h3>{{ stats.applied }}</h3>
+                <p>Applied</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="bi bi-mic-fill" style="font-size: 2rem; color: #FF3621;"></i>
+                <h3>{{ stats.interviewing }}</h3>
+                <p>Interviewing</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="bi bi-trophy-fill" style="font-size: 2rem; color: #FF3621;"></i>
+                <h3>{{ stats.offers }}</h3>
+                <p>Offers</p>
+            </div>
+        </div>
+    </div>
+
+    <h3 class="mt-5 mb-3">Features</h3>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-search"></i> Smart Job Search</h5>
+                    <p class="card-text">Search for jobs using the Adzuna API and get AI-powered recommendations based on your profile and skills.</p>
+                    <a href="{{ url_for('search') }}" class="btn btn-primary">Start Searching</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-person-fill"></i> Profile Management</h5>
+                    <p class="card-text">Set your career preferences, target roles, salary expectations, and upload your resume for better matching.</p>
+                    <a href="{{ url_for('profile') }}" class="btn btn-primary">Manage Profile</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-kanban-fill"></i> Application Pipeline</h5>
+                    <p class="card-text">Track your applications from saved to offer. Keep notes and stay organized throughout your job search.</p>
+                    <a href="{{ url_for('pipeline') }}" class="btn btn-primary">View Pipeline</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-chat-dots-fill"></i> AI Assistant</h5>
+                    <p class="card-text">Chat with your AI assistant to draft cover letters, prepare for interviews, and get personalized advice.</p>
+                    <a href="{{ url_for('assistant') }}" class="btn btn-primary">Chat Now</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

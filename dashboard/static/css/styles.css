@@ -1,0 +1,26 @@
+/* Additional custom styles for AI Job Hunting Copilot */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.btn-primary {
+    background-color: #FF3621;
+    border-color: #FF3621;
+}
+
+.btn-primary:hover {
+    background-color: #D73A3A;
+    border-color: #D73A3A;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}

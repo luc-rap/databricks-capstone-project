@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - AI Job Hunting Copilot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-person-fill"></i> My Profile</h1>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="mb-3"><i class="bi bi-file-earmark-pdf"></i> Quick Start: Upload Your CV</h4>
+            <p class="text-muted">Upload your CV (PDF) to automatically extract and populate your profile fields.</p>
+            
+            <div class="mb-3">
+                <input type="file" class="form-control" id="cv_file" accept=".pdf">
+                <div class="form-text">Supported format: PDF only</div>
+            </div>
+            
+            <button type="button" class="btn btn-primary" id="uploadCvBtn">
+                <i class="bi bi-upload"></i> Upload & Parse CV
+            </button>
+            
+            <div id="cvParseMessage" class="mt-3"></div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="profileForm" method="POST" action="{{ url_for('save_profile') }}">
+                <h4 class="mb-3">Career Preferences</h4>
+                
+                <div class="mb-3">
+                    <label for="target_roles" class="form-label">Target Roles (comma-separated)</label>
+                    <input type="text" class="form-control" id="target_roles" name="target_roles" 
+                           value="{% if profile.target_roles %}{{ profile.target_roles|join(', ') }}{% endif %}"
+                           placeholder="e.g. Software Engineer, Data Scientist, ML Engineer">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="location_prefs" class="form-label">Location Preferences (comma-separated)</label>
+                    <input type="text" class="form-control" id="location_prefs" name="location_prefs"
+                           value="{% if profile.location_preferences %}{{ profile.location_preferences|join(', ') }}{% endif %}"
+                           placeholder="e.g. San Francisco, New York, Remote">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="remote_pref" class="form-label">Remote Work Preference</label>
+                    <select class="form-select" id="remote_pref" name="remote_pref">
+                        <option value="remote" {% if profile.remote_preference == 'remote' %}selected{% endif %}>Remote</option>
+                        <option value="hybrid" {% if profile.remote_preference == 'hybrid' %}selected{% endif %}>Hybrid</option>
+                        <option value="onsite" {% if profile.remote_preference == 'onsite' %}selected{% endif %}>On-site</option>
+                        <option value="flexible" {% if not profile.remote_preference or profile.remote_preference == 'flexible' %}selected{% endif %}>Flexible</option>
+                    </select>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="salary_min" class="form-label">Minimum Salary ($)</label>
+                        <input type="number" class="form-control" id="salary_min" name="salary_min"
+                               value="{{ profile.salary_min or 0 }}" step="5000">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="salary_max" class="form-label">Maximum Salary ($)</label>
+                        <input type="number" class="form-control" id="salary_max" name="salary_max"
+                               value="{{ profile.salary_max or 200000 }}" step="5000">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="years_exp" class="form-label">Years of Experience</label>
+                    <input type="number" class="form-control" id="years_exp" name="years_exp"
+                           value="{{ profile.years_experience or 0 }}" step="1">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="resume_text" class="form-label">Resume / Bio</label>
+                    <textarea class="form-control" id="resume_text" name="resume_text" rows="8"
+                              placeholder="Paste your resume or a summary of your experience">{{ profile.resume_text or '' }}</textarea>
+                    <div class="form-text">This helps us match you with relevant jobs.</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="job_preferences" class="form-label">Job Preferences & Work Authorization</label>
+                    <textarea class="form-control" id="job_preferences" name="job_preferences" rows="3"
+                              placeholder="e.g. Requires US work authorization, No visa sponsorship needed, US Citizen or Green Card holder">{{ profile.job_preferences or '' }}</textarea>
+                    <div class="form-text">Specify any work authorization requirements, citizenship constraints, or other job preferences.</div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-save"></i> Save Profile</button>
+            </form>
+            
+            <div id="message" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// CV Upload Handler
+document.getElementById('uploadCvBtn').addEventListener('click', async function() {
+    const fileInput = document.getElementById('cv_file');
+    const file = fileInput.files[0];
+    const msgDiv = document.getElementById('cvParseMessage');
+    const uploadBtn = document.getElementById('uploadCvBtn');
+    
+    if (!file) {
+        msgDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Please select a PDF file</div>';
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        msgDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Only PDF files are supported</div>';
+        return;
+    }
+    
+    // Show loading state
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Parsing CV...';
+    msgDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Extracting text from your CV...</div>';
+    
+    try {
+        const formData = new FormData();
+        formData.append('cv_file', file);
+        
+        const response = await fetch('/api/parse-cv', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Auto-populate form fields
+            if (data.data.resume_text) {
+                document.getElementById('resume_text').value = data.data.resume_text;
+            }
+            if (data.data.target_roles) {
+                document.getElementById('target_roles').value = data.data.target_roles;
+            }
+            if (data.data.years_experience) {
+                document.getElementById('years_exp').value = data.data.years_experience;
+            }
+            if (data.data.location_preferences) {
+                document.getElementById('location_prefs').value = data.data.location_preferences;
+            }
+            if (data.data.job_preferences) {
+                document.getElementById('job_preferences').value = data.data.job_preferences;
+            }
+            
+            msgDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> CV parsed successfully! Review the extracted information below and click Save Profile.</div>';
+            
+            // Scroll to the form
+            document.getElementById('profileForm').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            msgDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + (data.error || 'Unknown error') + '</div>';
+        }
+    } catch (error) {
+        msgDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error uploading file: ' + error.message + '</div>';
+    } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="bi bi-upload"></i> Upload & Parse CV';
+    }
+});
+
+// Profile Form Submit Handler
+document.getElementById('profileForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    try {
+        const response = await fetch('{{ url_for("save_profile") }}', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        
+        const msgDiv = document.getElementById('message');
+        if (data.success) {
+            msgDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Profile saved successfully!</div>';
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            msgDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + (data.error || 'Unknown error') + '</div>';
+        }
+    } catch (error) {
+        document.getElementById('message').innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error saving profile</div>';
+    }
+});
+</script>
+{% endblock %}

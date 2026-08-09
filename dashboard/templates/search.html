@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Job Search - AI Job Hunting Copilot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-search"></i> Job Search</h1>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="searchForm">
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label for="query" class="form-label">Search Query</label>
+                        <input type="text" class="form-control" id="query" 
+                               placeholder="e.g. remote backend roles that don't require 5+ years of Kubernetes experience"
+                               required>
+                        <div class="form-text">Use natural language to describe what you're looking for</div>
+                    </div>
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-md-10">
+                        <label for="location" class="form-label">Location (optional)</label>
+                        <input type="text" class="form-control" id="location" placeholder="e.g. San Francisco, California">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100" id="searchBtn">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="remote_only">
+                    <label class="form-check-label" for="remote_only">
+                        Remote only
+                    </label>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mb-4" id="examplesCard">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-lightbulb"></i> Example Queries</h5>
+            <p class="text-muted mb-3">Try these semantic search examples:</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="fillExample('remote backend roles that don\'t require 5+ years of Kubernetes experience')">
+                    Remote backend without K8s
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="fillExample('entry level data science positions with Python and machine learning')">
+                    Entry-level data science
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="fillExample('senior software engineer roles with React and TypeScript')">
+                    Senior React developer
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="fillExample('cloud architect position working with AWS and infrastructure')">
+                    Cloud architect (AWS)
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="fillExample('full stack developer comfortable with both frontend and backend')">
+                    Full stack developer
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="loadingIndicator" class="text-center my-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Searching jobs using AI-powered semantic matching...</p>
+    </div>
+    
+    <div id="results"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const searchForm = document.getElementById('searchForm');
+const resultsDiv = document.getElementById('results');
+const loadingIndicator = document.getElementById('loadingIndicator');
+const searchBtn = document.getElementById('searchBtn');
+
+searchForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const query = document.getElementById('query').value.trim();
+    const location = document.getElementById('location').value.trim();
+    const remoteOnly = document.getElementById('remote_only').checked;
+    
+    if (!query) {
+        resultsDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Please enter a search query</div>';
+        return;
+    }
+    
+    // Show loading indicator
+    loadingIndicator.style.display = 'block';
+    resultsDiv.innerHTML = '';
+    searchBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: query,
+                location: location,
+                remote_only: remoteOnly,
+                limit: 20,
+                include_profile_match: true  // Request profile match scores
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayResults(data);
+        } else {
+            resultsDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-circle"></i> Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-circle"></i> Error: ${error.message}</div>`;
+    } finally {
+        loadingIndicator.style.display = 'none';
+        searchBtn.disabled = false;
+    }
+});
+
+function displayResults(data) {
+    if (data.count === 0) {
+        resultsDiv.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No jobs found matching your query: "${data.query}"
+                <br>Try adjusting your search terms or removing location filters.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i> Found ${data.count} jobs matching: "${data.query}"
+        </div>
+    `;
+    
+    data.jobs.forEach(job => {
+        const salaryText = job.salary_min && job.salary_max 
+            ? `${job.salary_min.toLocaleString()} - ${job.salary_max.toLocaleString()}` 
+            : 'Salary not specified';
+        
+        // Query match badge (existing)
+        const similarityPercent = (job.similarity * 100).toFixed(0);
+        const similarityBadge = job.similarity > 0.7 
+            ? 'success' 
+            : job.similarity > 0.5 
+                ? 'warning' 
+                : 'secondary';
+        
+        // Profile match badge (NEW)
+        let profileMatchBadge = '';
+        if (job.profile_match_score !== undefined && job.profile_match_score !== null) {
+            const profilePercent = (job.profile_match_score * 100).toFixed(0);
+            const profileBadgeColor = job.profile_match_score >= 0.8 
+                ? 'success' 
+                : job.profile_match_score >= 0.7 
+                    ? 'primary' 
+                    : job.profile_match_score >= 0.6 
+                        ? 'info' 
+                        : job.profile_match_score >= 0.5 
+                            ? 'warning' 
+                            : 'secondary';
+            
+            const profileLabel = job.profile_match_score >= 0.8 
+                ? 'Excellent' 
+                : job.profile_match_score >= 0.7 
+                    ? 'Strong' 
+                    : job.profile_match_score >= 0.6 
+                        ? 'Good' 
+                        : job.profile_match_score >= 0.5 
+                            ? 'Fair' 
+                            : 'Low';
+            
+            profileMatchBadge = `
+                <span class="badge bg-${profileBadgeColor} ms-2" title="${profileLabel} match based on your profile">
+                    <i class="bi bi-person-check"></i> ${profilePercent}% profile match
+                </span>
+            `;
+        }
+        
+        html += `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title mb-0">${escapeHtml(job.title)}</h5>
+                        <div>
+                            <span class="badge bg-${similarityBadge}" title="Match to your search query">
+                                <i class="bi bi-search"></i> ${similarityPercent}% query
+                            </span>
+                            ${profileMatchBadge}
+                        </div>
+                    </div>
+                    <h6 class="card-subtitle mb-2 text-muted">
+                        <i class="bi bi-building"></i> ${escapeHtml(job.company)}
+                        <span class="ms-3"><i class="bi bi-geo-alt"></i> ${escapeHtml(job.location)}</span>
+                    </h6>
+                    <p class="card-text">${escapeHtml(job.description)}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-info me-2"><i class="bi bi-cash"></i> ${salaryText}</span>
+                            ${job.posted_date ? `<span class="badge bg-secondary"><i class="bi bi-calendar"></i> ${new Date(job.posted_date).toLocaleDateString()}</span>` : ''}
+                        </div>
+                        <div>
+                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary">
+                                <i class="bi bi-box-arrow-up-right"></i> View Job
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="saveJob('${job.job_id}')">
+                                <i class="bi bi-bookmark"></i> Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsDiv.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function saveJob(jobId) {
+    // TODO: Implement save job functionality
+    alert('Save job functionality coming soon!');
+}
+
+function fillExample(exampleQuery) {
+    document.getElementById('query').value = exampleQuery;
+    document.getElementById('examplesCard').style.display = 'none';
+    document.getElementById('query').focus();
+}
+</script>
+{% endblock %}

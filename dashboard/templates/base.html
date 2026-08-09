@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Job Hunting Copilot{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, #FF3621 0%, #D73A3A 100%);
+            color: white;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+        .sidebar h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stats-card h3 {
+            font-size: 2rem;
+            margin: 10px 0;
+            color: #FF3621;
+        }
+        .stats-card p {
+            color: #666;
+            margin: 0;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h3><i class="bi bi-briefcase-fill"></i> Job Hunt Copilot</h3>
+        <hr style="border-color: rgba(255,255,255,0.3);">
+        <p style="font-size: 0.9rem; opacity: 0.8;">{{ user.name }}</p>
+        <p style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 20px;">{{ user.email }}</p>
+        
+        <nav class="nav flex-column">
+            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+                <i class="bi bi-house-fill"></i> Home
+            </a>
+            <a class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}">
+                <i class="bi bi-person-fill"></i> My Profile
+            </a>
+            <a class="nav-link {% if request.endpoint == 'search' %}active{% endif %}" href="{{ url_for('search') }}">
+                <i class="bi bi-search"></i> Job Search
+            </a>
+            <a class="nav-link {% if request.endpoint == 'market_stats' %}active{% endif %}" href="{{ url_for('market_stats') }}">
+                <i class="bi bi-bar-chart-fill"></i> Market Stats
+            </a>
+            <a class="nav-link {% if request.endpoint == 'pipeline' %}active{% endif %}" href="{{ url_for('pipeline') }}">
+                <i class="bi bi-kanban-fill"></i> My Pipeline
+            </a>
+            <a class="nav-link {% if request.endpoint == 'interviews' %}active{% endif %}" href="{{ url_for('interviews') }}">
+                <i class="bi bi-calendar-check"></i> Interviews
+            </a>
+            <a class="nav-link {% if request.endpoint == 'assistant' %}active{% endif %}" href="{{ url_for('assistant') }}">
+                <i class="bi bi-chat-dots-fill"></i> AI Assistant
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

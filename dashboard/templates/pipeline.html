@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Application Pipeline - AI Job Hunting Copilot{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-kanban-fill"></i> My Application Pipeline</h1>
+    
+    {% if applications.saved or applications.applied or applications.interviewing or applications.offer or applications.rejected %}
+        {% for status in ['saved', 'applied', 'interviewing', 'offer', 'rejected'] %}
+            {% if applications[status] %}
+                <h3 class="mt-4 mb-3">{{ status|title }} ({{ applications[status]|length }})</h3>
+                <div class="row g-3">
+                    {% for app in applications[status] %}
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ app.title }}</h5>
+                                    <h6 class="card-subtitle mb-2 text-muted">{{ app.company }}</h6>
+                                    <p class="card-text">
+                                        <i class="bi bi-geo-alt"></i> {{ app.location }}<br>
+                                        {% if app.applied_date %}
+                                        <i class="bi bi-calendar"></i> Applied: {{ app.applied_date }}<br>
+                                        {% endif %}
+                                        {% if app.notes %}
+                                        <i class="bi bi-sticky"></i> {{ app.notes }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <h5><i class="bi bi-inbox"></i> No Applications Yet</h5>
+            <p class="mb-0">Start by <a href="{{ url_for('search') }}" class="alert-link">searching for jobs</a>!</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

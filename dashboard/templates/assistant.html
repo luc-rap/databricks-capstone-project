@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}AI Assistant - AI Job Hunting Copilot{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chat-container {
+        height: 600px;
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .chat-messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        background: #f8f9fa;
+    }
+    .message {
+        margin-bottom: 15px;
+        display: flex;
+        gap: 10px;
+    }
+    .message.user {
+        justify-content: flex-end;
+    }
+    .message-content {
+        max-width: 70%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        word-wrap: break-word;
+    }
+    .message.user .message-content {
+        background: #FF3621;
+        color: white;
+    }
+    .message.assistant .message-content {
+        background: white;
+        border: 1px solid #dee2e6;
+    }
+    .chat-input-area {
+        padding: 20px;
+        background: white;
+        border-top: 1px solid #dee2e6;
+    }
+    .chat-input-group {
+        display: flex;
+        gap: 10px;
+    }
+    .chat-input-group input {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-chat-dots-fill"></i> AI Job Hunting Assistant</h1>
+    
+    <div class="alert alert-info mb-4">
+        <strong><i class="bi bi-robot"></i> Your AI Career Coach</strong>
+        <p class="mb-0">Ask me about job searching, application strategies, cover letters, interview preparation, and more!</p>
+    </div>
+    
+    <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div class="message-content">
+                    <strong>AI Assistant</strong><br>
+                    Hi! I'm your AI job hunting assistant. I can help you with:
+                    <ul class="mb-0 mt-2">
+                        <li>Finding matching job opportunities</li>
+                        <li>Drafting cover letters and emails</li>
+                        <li>Preparing for interviews</li>
+                        <li>Tracking your applications</li>
+                    </ul>
+                    <em class="text-muted small">Note: Full AI integration coming soon!</em>
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <div class="chat-input-group">
+                <input type="text" class="form-control" id="chatInput" placeholder="Ask me anything about your job search...">
+                <button class="btn btn-primary" onclick="sendMessage()">
+                    <i class="bi bi-send-fill"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message
+    const messagesDiv = document.getElementById('chatMessages');
+    messagesDiv.innerHTML += `
+        <div class="message user">
+            <div class="message-content">${escapeHtml(message)}</div>
+        </div>
+    `;
+    
+    input.value = '';
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    
+    // Send to API
+    fetch('{{ url_for("chat") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        messagesDiv.innerHTML += `
+            <div class="message assistant">
+                <div class="message-content">
+                    <strong>AI Assistant</strong><br>
+                    ${escapeHtml(data.reply)}
+                </div>
+            </div>
+        `;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Allow Enter key to send message
+document.getElementById('chatInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        sendMessage();
+    }
+});
+</script>
+{% endblock %}

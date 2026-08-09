@@ -1,0 +1,25 @@
+# Job Search MCP Server App Configuration
+# Deploy this as a separate Databricks App from the dashboard
+
+command:
+  - "python"
+  - "job_search_mcp_server.py"
+
+env:
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: ADZUNA_APP_ID
+    valueFrom:
+      secretKeyRef:
+        scope: "adzuna"
+        key: "app-id"
+  - name: ADZUNA_APP_KEY
+    valueFrom:
+      secretKeyRef:
+        scope: "adzuna"
+        key: "app-key"
+  # Optional: Add Lakebase connection if MCP server needs direct DB access
+  # - name: LAKEBASE_SECRET_SCOPE
+  #   value: "database"
+  # - name: LAKEBASE_SECRET_KEY
+  #   value: "lakebase-url"
