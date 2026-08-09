@@ -1,11 +1,11 @@
 # AI Job Hunting Copilot - Databricks AI Capstone project
 
 An AI-powered job search assistant built on Databricks, combining:
-- **Lakebase** (Postgres) for structured data storage
-- **MCP Server** for AI agent tool integration
+- **Lakebase** (Postgres) for structured data storage (see ```/sql``` for table definitions)
+- **MCP Server** for AI agent tool integration (see ```/mcp_server```)
 - **Flask** for user interaction
-- **Adzuna API** for job search data
--- CDF and data pipeline requirements were dropped as per intructions (not supported in free edition)
+- **Adzuna API** for job search data (https://developer.adzuna.com/)
+- CDF and data pipeline requirements were dropped as per intructions (not supported in free edition)
 
 ## Features
 
@@ -28,32 +28,6 @@ An AI-powered job search assistant built on Databricks, combining:
 ### 👤 User Profile Management
 - Upload CV and store resume and skills
 - Add target roles, preferred locations, salary range, job preferences
-
-## Architecture
-
-```
-databricks-capstone-project/
-├── sql/                      # Lakebase table schemas
-│   ├── create_tables.sql     # Main table definitions
-│   └── sample_data.sql       # Test data
-│
-├── mcp_server/               # MCP Server (separate Databricks App)
-│   ├── adzuna_adapter.py     # Adzuna API wrapper
-│   ├── job_search_mcp_server.py  # FastMCP server with tools
-│   ├── app.yaml              # MCP server app config
-│   └── requirements.txt
-│
-├── dashboard/                # Main Streamlit App
-│   ├── app.py                # Streamlit frontend
-│   ├── lakebase.py           # Lakebase connection helper
-│   ├── app.yaml              # Dashboard app config
-│   ├── requirements.txt
-│   └── notebooks/
-│       └── ingest_job_embeddings.py  # Periodic job ingestion
-│
-├── setup_secrets.py          # One-time secret setup
-└── databricks.yml            # DAB configuration
-```
 
 ## Setup Instructions
 
@@ -103,12 +77,8 @@ Register the MCP server URL with your Databricks AI Agent to enable tool calling
 ### Core Tables
 - **users** - User accounts
 - **profiles** - Career preferences, resume, embeddings
-- **skills** - User skills with proficiency levels
 - **job_postings** - Jobs from Adzuna with embeddings
 - **applications** - Application pipeline tracking
-- **saved_jobs** - Saved jobs with match scores
-- **interview_notes** - Interview tracking and follow-ups
-- **contacts** - Networking and referral contacts
 
 ## MCP Tools
 
@@ -134,52 +104,10 @@ The MCP server exposes these tools to AI agents:
 - `store_user_profile(resume_text, target_roles, skills, ...)` - Create/update user profile
 - `get_user_info()` - Retrieve current user's profile and preferences
 
-## TODO / Future Enhancements
-
-### Completed ✅
-- [x] Interview notes and follow-up tracking with `add_interview_note()`
-- [x] Stale application detection with `get_stale_applications()`
-- [x] Cover letter context API with `get_cover_letter_context()`
-- [x] Multi-profile support (session-based profile switching)
-- [x] Profile management tools (`store_user_profile`, `get_user_info`)
-
-### In Progress 🚧
-- [ ] Implement semantic search with embeddings
-- [ ] Integrate Databricks Foundation Model API for:
-  - Resume/job description embeddings
-  - AI-generated cover letter drafting (context API ready)
-  - Interview preparation suggestions
 
 ### Future Ideas 🔮
-- [ ] Add analytics dashboard (application funnel, success metrics)
-- [ ] Email integration for application tracking
-- [ ] Calendar integration for interview scheduling
-- [ ] Chrome extension for quick job saves
-- [ ] Mobile app
-
-## Development
-
-### Run Locally
-
-#### Dashboard
-```bash
-cd dashboard
-pip install -r requirements.txt
-streamlit run app.py --server.port=8080
-```
-
-#### MCP Server
-```bash
-cd mcp_server
-pip install -r requirements.txt
-python job_search_mcp_server.py
-```
-
-### Testing
-```bash
-# Run tests (TODO: add test suite)
-pytest tests/
-```
+- Schedule a job to run daily, fetch new job postings, sends an email to the user (with the best matches)
+- Add more Third-Party APIs (for job postings or company insights)
 
 ## Contributing
 
