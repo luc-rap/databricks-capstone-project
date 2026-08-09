@@ -5,7 +5,9 @@ An AI-powered job search assistant built on Databricks, combining:
 - **MCP Server** for AI agent tool integration (see ```/mcp_server```)
 - **Flask** for user interaction
 - **Adzuna API** for job search data (https://developer.adzuna.com/)
-- CDF and data pipeline requirements were dropped as per intructions (not supported in free edition)
+- CDF and data pipeline requirements were dropped as per instructions (not supported in free edition)
+- Spark requirement was changed to spark OR using pysocpg2. Delta via Spark not required
+- App.py is located in /dashboard, app.yaml set up to deploy it from there
 
 ![Description](img/img1.png)
 
