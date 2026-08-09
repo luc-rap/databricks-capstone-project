@@ -14,5 +14,7 @@ env:
     value: "lakebase-url"
   - name: PORT
     value: "8080"
-  - name: FLASK_SECRET_KEY
-    value: "change-this-in-production"
+  # FLASK_SECRET_KEY should be set via Databricks secret or environment variable
+  # DO NOT hardcode secret keys in version control
+  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+  # For now, app.py will generate one at runtime if not provided

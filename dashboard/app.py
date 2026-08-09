@@ -13,6 +13,7 @@ import re
 import io
 import json
 from decimal import Decimal
+from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask.json.provider import DefaultJSONProvider
 from databricks.sdk import WorkspaceClient
@@ -24,10 +25,12 @@ from assistant_client import DatabricksAssistantClient
 
 
 class DecimalJSONProvider(DefaultJSONProvider):
-    """Custom JSON provider that handles Decimal types from database results."""
+    """Custom JSON provider that handles Decimal and datetime types from database results."""
     def default(self, obj):
         if isinstance(obj, Decimal):
             return float(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
         return super().default(obj)
 
 

@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
     .chat-container {
-        height: 600px;
+        height: 800px;
         display: flex;
         flex-direction: column;
         background: white;
@@ -34,7 +34,7 @@
         word-wrap: break-word;
     }
     .message.user .message-content {
-        background: #FFD4E5;
+        background: #9867c8;
         color: white;
     }
     .message.assistant .message-content {
@@ -52,6 +52,61 @@
     }
     .chat-input-group input {
         flex: 1;
+    }
+    .thinking-indicator {
+        display: none;
+        padding: 12px 16px;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        max-width: 200px;
+    }
+    .thinking-indicator.active {
+        display: inline-block;
+    }
+    .typing-dots {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+    .typing-dots span {
+        width: 8px;
+        height: 8px;
+        background: #9867c8;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+    }
+    .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+    }
+    .message-content ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    .message-content li {
+        margin: 5px 0;
+    }
+    .message-content strong {
+        font-weight: 600;
+    }
+    .message-content em {
+        font-style: italic;
+    }
+    .message-content pre {
+        background: #f4f4f4;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+        margin: 10px 0;
+    }
+    .message-content code {
+        background: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
     }
 </style>
 {% endblock %}
@@ -109,6 +164,20 @@ function sendMessage() {
         </div>
     `;
     
+    // Show thinking indicator
+    const thinkingId = 'thinking-' + Date.now();
+    messagesDiv.innerHTML += `
+        <div class="message assistant" id="${thinkingId}">
+            <div class="thinking-indicator active">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
     input.value = '';
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
     
@@ -122,11 +191,15 @@ function sendMessage() {
     })
     .then(response => response.json())
     .then(data => {
+        // Remove thinking indicator
+        document.getElementById(thinkingId).remove();
+        
+        // Add formatted response
         messagesDiv.innerHTML += `
             <div class="message assistant">
                 <div class="message-content">
                     <strong>AI Assistant</strong><br>
-                    ${escapeHtml(data.reply)}
+                    ${formatMessage(data.reply)}
                 </div>
             </div>
         `;
@@ -134,6 +207,17 @@ function sendMessage() {
     })
     .catch(error => {
         console.error('Error:', error);
+        // Remove thinking indicator on error
+        document.getElementById(thinkingId).remove();
+        messagesDiv.innerHTML += `
+            <div class="message assistant">
+                <div class="message-content">
+                    <strong>AI Assistant</strong><br>
+                    <em class="text-danger">Sorry, I encountered an error. Please try again.</em>
+                </div>
+            </div>
+        `;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     });
 }
 
@@ -141,6 +225,47 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function formatMessage(text) {
+    // Remove TOOL CALL lines before formatting
+    text = text.split('\n').filter(line => !line.trim().startsWith('TOOL CALL:')).join('\n');
+    
+    // Escape HTML first
+    let formatted = escapeHtml(text);
+    
+    // Convert markdown-style formatting
+    // Bold: **text** or __text__
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    formatted = formatted.replace(/__(.*?)__/g, '<strong>$1</strong>');
+    
+    // Italic: *text* or _text_
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    formatted = formatted.replace(/_(.*?)_/g, '<em>$1</em>');
+    
+    // Code: `code`
+    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Convert numbered lists (1. item)
+    formatted = formatted.replace(/(^|\n)(\d+\. .+)/g, function(match, prefix, item) {
+        return prefix + '<li>' + item.substring(3) + '</li>';
+    });
+    if (formatted.includes('<li>')) {
+        formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ol>$1</ol>');
+    }
+    
+    // Convert bullet lists (- item or * item)
+    formatted = formatted.replace(/(^|\n)([\-\*] .+)/g, function(match, prefix, item) {
+        return prefix + '<li>' + item.substring(2) + '</li>';
+    });
+    if (formatted.includes('<li>') && !formatted.includes('<ol>')) {
+        formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    }
+    
+    // Line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    return formatted;
 }
 
 // Allow Enter key to send message
