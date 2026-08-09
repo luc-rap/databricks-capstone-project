@@ -36,7 +36,6 @@ resources:
         command:
           - python
           - "-m"
-          - streamlit
           - run
           - app.py
           - "--server.port=8080"
@@ -46,16 +45,3 @@ resources:
           - name: LAKEBASE_SECRET_KEY
             value: lakebase-url
       source_code_path: dashboard/
-
-  jobs:
-    ingest-job-postings:
-      name: ingest-job-postings-daily
-      description: "Daily job posting ingestion from Adzuna API"
-      schedule:
-        quartz_cron_expression: "0 0 8 * * ?"  # Daily at 8 AM
-        timezone_id: "America/Los_Angeles"
-      tasks:
-        - task_key: ingest_jobs
-          notebook_task:
-            notebook_path: dashboard/notebooks/ingest_job_embeddings
-          existing_cluster_id: ${var.cluster_id}
