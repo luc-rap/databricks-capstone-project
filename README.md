@@ -7,6 +7,8 @@ An AI-powered job search assistant built on Databricks, combining:
 - **Adzuna API** for job search data (https://developer.adzuna.com/)
 - CDF and data pipeline requirements were dropped as per intructions (not supported in free edition)
 
+![Description](img/img1.png)
+
 ## Features
 
 ### 🔍 Intelligent Job Search
@@ -14,10 +16,17 @@ An AI-powered job search assistant built on Databricks, combining:
 - Semantic search using embeddings (job descriptions + user profile)
 - AI-powered job ranking and match scoring
 
+![Description](img/img3.png)
+
+
 ### 📊 Application Pipeline Tracking
 - Track jobs through stages: saved → applied → interviewing → offer
 - Interview notes and follow-up reminders
 - Identify stale applications
+
+![Description](img/img2.png)
+
+![Description](img/img4.png)
 
 ### 💬 AI Assistant
 - Ask questions in natural language
@@ -25,9 +34,18 @@ An AI-powered job search assistant built on Databricks, combining:
 - Draft cover letters and resume bullets
 - Prepare for interviews
 
+![Description](img/img5.png)
+
 ### 👤 User Profile Management
 - Upload CV and store resume and skills
 - Add target roles, preferred locations, salary range, job preferences
+
+![Description](img/img6.png)
+
+### 📊 Job Market Stats
+- Overview of the current market
+
+![Description](img/img7.png)
 
 ## Setup Instructions
 

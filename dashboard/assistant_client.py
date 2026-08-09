@@ -269,7 +269,8 @@ When users ask about jobs:
 6. Use store_user_profile to help users set up or update their profile
 7. Use get_cover_letter_context when users want help drafting a cover letter
 
-Be conversational and helpful.
+Be conversational and helpful. When calling tools, format your response as:
+TOOL_CALL: tool_name(arg1="value1", arg2="value2")
 
 User context: {user_email or 'unknown'}"""
         
