@@ -44,7 +44,7 @@ def _get_end_user_email() -> str:
     try:
         from databricks.sdk import WorkspaceClient
         w = WorkspaceClient()
-        return 'ee80832f-13e8-4ada-96e5-030554713d21'
+        return '<>'
     except Exception:
         return 'unknown@databricks.com'
 
