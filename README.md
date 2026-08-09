@@ -84,7 +84,6 @@ Schedule this to run daily/weekly to refresh job listings.
 ### 6. Connect AI Agent
 Register the MCP server URL with your Databricks AI Agent to enable tool calling.
 
-**📚 For detailed integration guidance**, see [mcp_server/ASSISTANT_INTEGRATION.md](mcp_server/ASSISTANT_INTEGRATION.md) for:
 - Complete tool reference with examples
 - Conversational workflow patterns
 - Best practices for semantic search and matching
@@ -110,12 +109,6 @@ The MCP server exposes these tools to AI agents:
 - `save_job(job_id, match_score, reasoning)` - Save a job to your pipeline
 - `update_application_status(job_id, status, notes)` - Move jobs through stages (saved → applied → interviewing → rejected/offer)
 - `get_my_applications(stage)` - Query all applications, optionally filtered by stage
-
-### Interview & Follow-up
-- `add_interview_note(job_id, interview_date, interview_type, notes, follow_up_date)` - Track interviews with notes and reminders
-  - Interview types: `phone_screen`, `technical`, `behavioral`, `onsite`, `final`
-- `get_stale_applications(days_threshold)` - Find applications not updated in X days (default 14)
-  - Excludes terminal stages (rejected, accepted)
 - `get_cover_letter_context(job_id)` - Get structured job + profile data for AI-generated cover letters
 
 ### Profile Management
